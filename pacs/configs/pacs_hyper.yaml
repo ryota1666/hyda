@@ -1,0 +1,89 @@
+experiment_name: "pacs_hyda" # 変更: 実験名をPACS用に
+
+trainer:
+  fast_dev_run: False
+  detect_anomaly: False
+  max_epochs: 4000
+  precision: '16-mixed' 
+  accelerator: "gpu"
+  devices:
+    - 0 # 変更: お使いの環境に合わせてGPU番号を0に
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: "pacs_uda" # 変更: W&Bのプロジェクト名をPACS用に
+      name:
+      tags:
+        - hyper
+  callbacks:
+    #- class_path: lightning.pytorch.callbacks.EarlyStopping
+      #init_args:
+        #monitor: "val_loss"
+        #patience: 50
+        #mode: "min"
+        #verbose: True
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: 'epoch'
+
+
+chkpt_callback:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 1
+    dirpath:
+    filename:
+
+
+model:
+  class_path: pacs.pl_modules.hypernet.DomainConditionedPACSLitModule # 変更: 今後作成するPACS用のLitModuleを指定
+  init_args:
+    lr: 0.001
+    min_lr: 1e-6
+    w_decay: 0.05 
+    msim_loss_weight: 1
+    use_aux_msim_loss: True
+
+    # primary network
+    imagenet_pretrained: True
+    num_classes: 7 # 変更: PACSのクラス数（7）に修正
+    # クラス数に合わせ、ダミーの値を7個配置しておきます
+    task_weights: 
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+
+    # domain branch
+    target_domain: "art_painting" # 変更: テスト対象にしたいドメイン名
+    dom_clf_ckpt: "checkpoints/pacs_domain_clf.ckpt" # 変更: 前のステップで学習したドメイン分類器のパスを指定します
+    domain_encoder:
+      class_path: pacs.models.domain_classifier.NaiveEncoder # 変更: PACS用にインポート元を変更
+      init_args:
+        activation: "ReLU"
+        norm_layer: "BatchNorm2d"
+
+    domain_classifier:
+      class_path: pacs.models.domain_classifier.NaiveClassifier # 変更: PACS用にインポート元を変更
+      init_args:
+        num_classes: 3 # 注意: 先ほどの pacs_domain_clf.yaml の値と一致させてください
+
+    # hypernetwork
+    hyper_in_size: 64
+    hyper_emb: 32
+    init_method: 'uniform' 
+    input_var:  0.11 
+
+
+
+
+data:
+  class_path: pacs.data.data_module.PACSDataModule # 変更: 先ほど作ったデータモジュールを指定
+  init_args:
+    data_dir: "data/PACS" # 変更: 手順2でデータを配置したパス
+    target_domain: "art_painting" # 変更: model側のtarget_domainと合わせてください
+    batch_size: 128
+    num_workers: 4 # 変更: パソコンの負荷に合わせて調整

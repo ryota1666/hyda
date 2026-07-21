@@ -1,0 +1,65 @@
+experiment_name: "pacs_baseline" # 変更: 実験名をPACS用に
+
+trainer:
+  fast_dev_run: False
+  max_epochs: 150
+  precision: 'bf16-mixed' 
+  accelerator: "gpu"
+  devices:
+    - 0 # 変更: 一般的な環境に合わせてGPU番号を1から0に（お使いの環境で変更してください）
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: "pacs_uda" # 変更: W&Bのプロジェクト名をPACS用に
+      name:
+      tags:
+        - baseline
+  callbacks:
+    #- class_path: lightning.pytorch.callbacks.EarlyStopping
+      #init_args:
+        #monitor: "val_loss"
+        #patience: 100
+        #mode: "min"
+        #verbose: True
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: 'epoch'
+
+
+chkpt_callback:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 1
+    dirpath:
+    filename:
+
+
+model:
+  class_path: pacs.pl_modules.PACSLitModule # 変更: 今後作成するPACS用のLitModuleを指定
+  init_args:
+    lr: 0.001
+    min_lr: 1e-6
+    w_decay: 0.05 
+    # 注意: task_weights は自動計算（DataModuleのプロパティ）をモデル側が読み込むか、
+    # あるいはダミーの値をクラス数（7個）分置いておきます。
+    task_weights: 
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+    model:
+      class_path: pacs.models.PACSResNet18 # 変更: 今後作成・修正するPACS用のネットワークを指定
+      init_args:
+        imagenet_pretrained: True
+        num_classes: 7 # 変更: PACSのクラス数（7）に修正
+
+data:
+  class_path: pacs.data.data_module.PACSDataModule # 変更: 先ほど作ったデータモジュールを指定
+  init_args:
+    data_dir: "data/PACS" # 変更: 先ほど手順2でデータを配置したパス
+    target_domain: "photo" # 変更: テスト対象にしたいドメイン
+    batch_size: 128
+    num_workers: 4 # 変更: パソコンの負荷に合わせて少し控えめに調整（必要なら増やしてください）

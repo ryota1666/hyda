@@ -1,0 +1,52 @@
+experiment_name: "pacs_dom_clf" # 変更: 実験名をPACS用に
+
+trainer:
+  fast_dev_run: False
+  max_epochs: 3000
+  precision: '16-mixed' 
+  accelerator: "gpu"
+  devices:
+    - 0 # 変更: お使いの環境に合わせてGPU番号を0に
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: "pacs_uda" # 変更: W&Bのプロジェクト名をPACS用に
+      name:
+      tags:
+        - domain_clf
+
+chkpt_callback:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 1
+    dirpath:
+    filename:
+
+model:
+  class_path: pacs.pl_modules.PACSDomainClassifier # 変更: 今後作成するPACS用のDomainClassifierを指定
+  init_args:
+    lr: 0.001
+    w_decay: 0.05
+    alpha: 2
+    msim_on_embeddings: True
+    target_domain: "art_painting" # 変更: テスト対象にしたいドメイン名
+
+    encoder:
+      class_path: pacs.models.domain_classifier.NaiveEncoder # 変更: PACS用にインポート元を変更
+      init_args:
+        activation: "ReLU"
+        norm_layer: "BatchNorm2d"
+
+    classifier:
+      class_path: pacs.models.domain_classifier.NaiveClassifier # 変更: PACS用にインポート元を変更
+      init_args:
+        num_classes: 3 # 変更!! 4ドメインからターゲット(1つ)を引いた「3」を指定します
+
+
+data:
+  class_path: pacs.data.data_module.PACSDataModule # 変更: 先ほど作ったデータモジュールを指定
+  init_args:
+    data_dir: "data/PACS" # 変更: 手順2でデータを配置したパス
+    target_domain: "art_painting" # 変更: model側のtarget_domainと合わせてください
+    batch_size: 128
+    num_workers: 4 # 変更: パソコンの負荷に合わせて調整
